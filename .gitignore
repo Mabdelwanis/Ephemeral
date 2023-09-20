@@ -1,0 +1,4 @@
+packages/
+.theos/
+.vscode/
+.DS_Store
