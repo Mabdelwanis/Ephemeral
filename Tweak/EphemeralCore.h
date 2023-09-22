@@ -4,6 +4,7 @@
 #import "ViewController/EphemeralPageViewController.h"
 
 extern "C" void GSSendAppPreferencesChanged(CFStringRef bundleID, CFStringRef key);
+static void triggerEphemeralStandBy();
 static void enableBiometrics();
 static void disableBiometrics();
 static void enableAutoBrightness();
@@ -26,11 +27,11 @@ CGFloat previousBrightness = 0;
 @end
 
 @interface SpringBoard : UIApplication
+- (BOOL)isLocked;
 @end
 
 @interface SBLockScreenManager : NSObject
 + (id)sharedInstance;
-- (BOOL)isUILocked;
 - (void)setBiometricAutoUnlockingDisabled:(BOOL)disabled forReason:(NSString *)reason;
 @end
 
