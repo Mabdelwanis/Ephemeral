@@ -2,7 +2,7 @@
 
 CSCoverSheetView* coverSheetView;
 
-#pragma mark - CSCoverSheetView class properties
+#pragma mark - Class properties
 
 static BOOL isEphemeralStandByActive(CSCoverSheetView* self, SEL _cmd) {
     return (BOOL)objc_getAssociatedObject(self, (void *)isEphemeralStandByActive);
@@ -19,7 +19,7 @@ static void setEphemeralPageViewController(CSCoverSheetView* self, SEL _cmd, UIV
     objc_setAssociatedObject(self, (void *)ephemeralPageViewController, rawValue, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-#pragma mark - CSCoverSheetView class hooks
+#pragma mark - Initializing the StandBy page controller
 
 static void (* orig_CSCoverSheetView_didMoveToWindow)(CSCoverSheetView* self, SEL _cmd);
 static void override_CSCoverSheetView_didMoveToWindow(CSCoverSheetView* self, SEL _cmd) {
@@ -33,6 +33,38 @@ static void override_CSCoverSheetView_didMoveToWindow(CSCoverSheetView* self, SE
     [self setEphemeralPageViewController:[[EphemeralPageViewController alloc] init]];
     [[self superview] addSubview:[[self ephemeralPageViewController] view]];
     [[[self ephemeralPageViewController] view] setHidden:YES];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientationChanged) name:UIDeviceOrientationDidChangeNotification object:[UIDevice currentDevice]];
+}
+
+#pragma mark - StandBy management
+
+static void (* orig_SBUIController_ACPowerChanged)(SBUIController* self, SEL _cmd);
+static void override_SBUIController_ACPowerChanged(SBUIController* self, SEL _cmd) {
+    orig_SBUIController_ACPowerChanged(self, _cmd);
+
+    if (![self isOnAC]) {
+        [coverSheetView deactivateEphemeralStandBy];
+        return;
+    }
+
+    if ([[objc_getClass("SBLockScreenManager") sharedInstance] isUILocked] &&
+        UIDeviceOrientationIsLandscape([[UIDevice currentDevice] orientation])
+    ) {
+        [coverSheetView activateEphemeralStandBy];
+    }
+}
+
+static void orientationChanged(CSCoverSheetView* self, SEL _cmd) {
+    if (!UIDeviceOrientationIsLandscape([[UIDevice currentDevice] orientation]) ||
+        ![[objc_getClass("SBUIController") sharedInstance] isOnAC] ||
+        ![[objc_getClass("SBLockScreenManager") sharedInstance] isUILocked]
+    ) {
+        [self deactivateEphemeralStandBy];
+        return;
+    }
+
+    [self activateEphemeralStandBy];
 }
 
 static void activateEphemeralStandBy(CSCoverSheetView* self, SEL _cmd) {
@@ -100,41 +132,6 @@ static void setBrightness(CGFloat value) {
     BKSDisplayBrightnessSet(value, 0);
 }
 
-#pragma mark - SBUIController class hooks
-
-static void (* orig_SBUIController_ACPowerChanged)(SBUIController* self, SEL _cmd);
-static void override_SBUIController_ACPowerChanged(SBUIController* self, SEL _cmd) {
-    orig_SBUIController_ACPowerChanged(self, _cmd);
-
-    if (![self isOnAC]) {
-        [coverSheetView deactivateEphemeralStandBy];
-        return;
-    }
-
-    if ([[objc_getClass("SBLockScreenManager") sharedInstance] isUILocked] &&
-        UIDeviceOrientationIsLandscape([[UIDevice currentDevice] orientation])
-    ) {
-        [coverSheetView activateEphemeralStandBy];
-    }
-}
-
-// #pragma mark - SpringBoard class hooks
-
-// static void (* orig_SpringBoard_noteInterfaceOrientationChanged_duration_logMessage)(SpringBoard* self, SEL _cmd, UIDeviceOrientation orientation, double duration, NSString* logMessage);
-// static void override_SpringBoard_noteInterfaceOrientationChanged_duration_logMessage(SpringBoard* self, SEL _cmd, UIDeviceOrientation orientation, double duration, NSString* logMessage) {
-//     orig_SpringBoard_noteInterfaceOrientationChanged_duration_logMessage(self, _cmd, orientation, duration, logMessage);
-
-//     if (![[objc_getClass("SBLockScreenManager") sharedInstance] isUILocked] ||
-//         ![[objc_getClass("SBUIController") sharedInstance] isOnAC] ||
-//         !UIDeviceOrientationIsLandscape(orientation)
-//     ) {
-//         [coverSheetView deactivateEphemeralStandBy];
-//         return;
-//     }
-
-//     [coverSheetView activateEphemeralStandBy];
-// }
-
 #pragma mark - Constructor
 
 __attribute((constructor)) static void initialize() {
@@ -145,10 +142,10 @@ __attribute((constructor)) static void initialize() {
     class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(ephemeralPageViewController), (IMP)&ephemeralPageViewController, "@@:");
     class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(setEphemeralPageViewController:), (IMP)&setEphemeralPageViewController, "v@:@");
 
+    class_addMethod(objc_getClass("CSCoverSheetView"), @selector(orientationChanged), (IMP)&orientationChanged, "v@:");
     class_addMethod(objc_getClass("CSCoverSheetView"), @selector(activateEphemeralStandBy), (IMP)&activateEphemeralStandBy, "v@:");
     class_addMethod(objc_getClass("CSCoverSheetView"), @selector(deactivateEphemeralStandBy), (IMP)&deactivateEphemeralStandBy, "v@:");
 
     MSHookMessageEx(objc_getClass("CSCoverSheetView"), @selector(didMoveToWindow), (IMP)&override_CSCoverSheetView_didMoveToWindow, (IMP *)&orig_CSCoverSheetView_didMoveToWindow);
     MSHookMessageEx(objc_getClass("SBUIController"), @selector(ACPowerChanged), (IMP)&override_SBUIController_ACPowerChanged, (IMP *)&orig_SBUIController_ACPowerChanged);
-    // MSHookMessageEx(objc_getClass("SpringBoard"), @selector(noteInterfaceOrientationChanged:duration:logMessage:), (IMP)&override_SpringBoard_noteInterfaceOrientationChanged_duration_logMessage, (IMP *)&orig_SpringBoard_noteInterfaceOrientationChanged_duration_logMessage);
 }
