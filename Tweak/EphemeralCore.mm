@@ -15,11 +15,11 @@ static void setIsEphemeralStandByActive(CSCoverSheetView* self, SEL _cmd, BOOL r
     objc_setAssociatedObject(self, (void *)isEphemeralStandByActive, value, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-static UIViewController* ephemeralPageViewController(CSCoverSheetView* self, SEL _cmd) {
-    return (UIViewController *)objc_getAssociatedObject(self, (void *)ephemeralPageViewController);
+static UIViewController* ephemeralViewController(CSCoverSheetView* self, SEL _cmd) {
+    return (UIViewController *)objc_getAssociatedObject(self, (void *)ephemeralViewController);
 };
-static void setEphemeralPageViewController(CSCoverSheetView* self, SEL _cmd, UIViewController* rawValue) {
-    objc_setAssociatedObject(self, (void *)ephemeralPageViewController, rawValue, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+static void setEphemeralViewController(CSCoverSheetView* self, SEL _cmd, UIViewController* rawValue) {
+    objc_setAssociatedObject(self, (void *)ephemeralViewController, rawValue, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 #pragma mark - Initialization
@@ -35,10 +35,10 @@ static void override_CSCoverSheetView_didMoveToWindow(CSCoverSheetView* self, SE
     coverSheetView = self;
     springBoard = (SpringBoard *)[objc_getClass("SpringBoard") sharedApplication];
 
-    [self setEphemeralPageViewController:[[EphemeralPageViewController alloc] init]];
-    [[self superview] addSubview:[[self ephemeralPageViewController] view]];
+    [self setEphemeralViewController:[[EphemeralViewController alloc] initWithTransitionStyle:UIPageViewControllerTransitionStyleScroll navigationOrientation:UIPageViewControllerNavigationOrientationHorizontal options:nil]];
+    [[[self superview] superview] addSubview:[[self ephemeralViewController] view]];
 
-    [[[self ephemeralPageViewController] view] setHidden:YES];
+    [[[self ephemeralViewController] view] setHidden:YES];
     [self setIsEphemeralStandByActive:NO];
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientationChanged) name:UIDeviceOrientationDidChangeNotification object:[UIDevice currentDevice]];
@@ -74,7 +74,7 @@ static void activateEphemeralStandBy(CSCoverSheetView* self, SEL _cmd) {
     }
     [self setIsEphemeralStandByActive:YES];
 
-    [[[coverSheetView ephemeralPageViewController] view] setHidden:NO];
+    [[[coverSheetView ephemeralViewController] view] setHidden:NO];
 
     disableBiometrics();
     disableAutoBrightness();
@@ -89,7 +89,7 @@ static void deactivateEphemeralStandBy(CSCoverSheetView* self, SEL _cmd) {
     }
     [self setIsEphemeralStandByActive:NO];
 
-    [[[coverSheetView ephemeralPageViewController] view] setHidden:YES];
+    [[[coverSheetView ephemeralViewController] view] setHidden:YES];
 
     enableBiometrics();
     if (wasAutoBrightnessEnabled) {
@@ -133,15 +133,22 @@ static void setBrightness(CGFloat value) {
     BKSDisplayBrightnessSet(value, 0);
 }
 
+#pragma mark - Enable lock screen rotation
+
+static BOOL (* orig_CSCoverSheetViewController_shouldAutorotate)(CSCoverSheetViewController* self, SEL _cmd);
+static BOOL override_CSCoverSheetViewController_shouldAutorotate(CSCoverSheetViewController* self, SEL _cmd) {
+    return YES;
+}
+
 #pragma mark - Constructor
 
 __attribute((constructor)) static void initialize() {
     class_addProperty(NSClassFromString(@"CSCoverSheetView"), "isEphemeralStandByActive", (objc_property_attribute_t[]){{"T", @encode(BOOL)}, {"N", ""}, {"V", "_isEphemeralStandByActive"}}, 3);
     class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(isEphemeralStandByActive), (IMP)&isEphemeralStandByActive, "C@:");
     class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(setIsEphemeralStandByActive:), (IMP)&setIsEphemeralStandByActive, "v@:C");
-    class_addProperty(NSClassFromString(@"CSCoverSheetView"), "ephemeralPageViewController", (objc_property_attribute_t[]){{"T", "@\"UIViewController\""}, {"N", ""}, {"V", "_ephemeralPageViewController"}}, 3);
-    class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(ephemeralPageViewController), (IMP)&ephemeralPageViewController, "@@:");
-    class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(setEphemeralPageViewController:), (IMP)&setEphemeralPageViewController, "v@:@");
+    class_addProperty(NSClassFromString(@"CSCoverSheetView"), "ephemeralViewController", (objc_property_attribute_t[]){{"T", "@\"UIViewController\""}, {"N", ""}, {"V", "_ephemeralViewController"}}, 3);
+    class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(ephemeralViewController), (IMP)&ephemeralViewController, "@@:");
+    class_addMethod(NSClassFromString(@"CSCoverSheetView"), @selector(setEphemeralViewController:), (IMP)&setEphemeralViewController, "v@:@");
 
     class_addMethod(objc_getClass("CSCoverSheetView"), @selector(orientationChanged), (IMP)&orientationChanged, "v@:");
     class_addMethod(objc_getClass("CSCoverSheetView"), @selector(activateEphemeralStandBy), (IMP)&activateEphemeralStandBy, "v@:");
@@ -149,4 +156,5 @@ __attribute((constructor)) static void initialize() {
 
     MSHookMessageEx(objc_getClass("CSCoverSheetView"), @selector(didMoveToWindow), (IMP)&override_CSCoverSheetView_didMoveToWindow, (IMP *)&orig_CSCoverSheetView_didMoveToWindow);
     MSHookMessageEx(objc_getClass("SBUIController"), @selector(ACPowerChanged), (IMP)&override_SBUIController_ACPowerChanged, (IMP *)&orig_SBUIController_ACPowerChanged);
+    MSHookMessageEx(objc_getClass("CSCoverSheetViewController"), @selector(shouldAutorotate), (IMP)&override_CSCoverSheetViewController_shouldAutorotate, (IMP *)&orig_CSCoverSheetViewController_shouldAutorotate);
 }

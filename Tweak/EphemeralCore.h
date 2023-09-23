@@ -1,7 +1,7 @@
 #import <substrate.h>
 #import <UIKit/UIKit.h>
 #import <BackBoardServices/BKSDisplayBrightness.h>
-#import "ViewController/EphemeralPageViewController.h"
+#import "ViewController/EphemeralViewController.h"
 
 extern "C" void GSSendAppPreferencesChanged(CFStringRef bundleID, CFStringRef key);
 static void triggerEphemeralStandBy();
@@ -16,7 +16,7 @@ CGFloat previousBrightness = 0;
 
 @interface CSCoverSheetView : UIView
 @property(nonatomic, assign)BOOL isEphemeralStandByActive;
-@property(nonatomic, retain)EphemeralPageViewController* ephemeralPageViewController;
+@property(nonatomic, retain)EphemeralViewController* ephemeralViewController;
 - (void)activateEphemeralStandBy;
 - (void)deactivateEphemeralStandBy;
 @end
@@ -39,4 +39,7 @@ CGFloat previousBrightness = 0;
 + (id)sharedInstance;
 - (void)noteScreenDidTurnOff;
 - (void)noteScreenWillTurnOn;
+@end
+
+@interface CSCoverSheetViewController : UIViewController
 @end
